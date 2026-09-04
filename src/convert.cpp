@@ -3,6 +3,7 @@
 #include "convert.h"
 
 #include <algorithm>
+#include <functional>
 #include <iterator>
 #include <map>
 #include <set>
