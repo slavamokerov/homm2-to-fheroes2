@@ -1,0 +1,192 @@
+<!doctype html>
+  <html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>homm2-to-fheroes2 — convert Heroes of Might and Magic II saves to the fheroes2 format</title>
+  <meta name="description" content="A free converter of original Heroes of Might and Magic II saves (.GM1 / .GMC / .GXC) to the fheroes2 save format (.sav / .savc). Select the saves and they are converted right on the page; download the results.">
+  <meta name="author" content="slavamokerov">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#f5deb3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1a1a1a" media="(prefers-color-scheme: dark)">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="homm2-to-fheroes2">
+  <meta property="og:title" content="homm2-to-fheroes2 — convert HoMM2 saves to the fheroes2 format">
+  <meta property="og:description" content="Convert original Heroes of Might and Magic II saves to the fheroes2 save format.">
+  <meta property="og:url" content="https://slavamokerov.github.io/homm2-to-fheroes2/">
+  <meta property="og:image" content="https://slavamokerov.github.io/homm2-to-fheroes2/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="homm2-to-fheroes2: Heroes of Might and Magic II logo, green route arrows, and the fheroes2 shield">
+  <meta property="og:locale" content="en_US">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="homm2-to-fheroes2 — convert HoMM2 saves to the fheroes2 format">
+  <meta name="twitter:description" content="Convert original Heroes of Might and Magic II saves to the fheroes2 save format.">
+  <meta name="twitter:image" content="https://slavamokerov.github.io/homm2-to-fheroes2/og-image.png">
+
+  <link rel="canonical" href="https://slavamokerov.github.io/homm2-to-fheroes2/">
+  <link rel="icon" type="image/png" href="icon.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "homm2-to-fheroes2",
+    "applicationCategory": "GameApplication",
+    "applicationSubCategory": "Save Converter",
+    "operatingSystem": "Web, macOS, Linux, Windows",
+    "description": "A free converter of original Heroes of Might and Magic II saves (.GM1 / .GMC / .GXC) to the fheroes2 save format (.sav / .savc).",
+    "url": "https://slavamokerov.github.io/homm2-to-fheroes2/",
+    "license": "https://github.com/slavamokerov/homm2-to-fheroes2/blob/main/LICENSE",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "featureList": [
+      "Convert .GM1 standard game saves",
+      "Convert .GMC and .GXC campaign saves to .savc",
+      "Choose the fheroes2 save format version 10032 / 10033 / 10034",
+      "Batch conversion with a zip archive download",
+      "Runs locally: the saves never leave the computer"
+    ],
+    "author": { "@type": "Person", "name": "slavamokerov" }
+  }
+  </script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Will fheroes2 accept the converted save?",
+        "acceptedAnswer": { "@type": "Answer", "text": "The output targets the fheroes2 save format versions 10032-10034 (10033 by default, read by fheroes2 1.1.15 and later)." }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I convert back?",
+        "acceptedAnswer": { "@type": "Answer", "text": "No. Conversion is one-way: original to fheroes2." }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I convert an edited fheroes2 save?",
+        "acceptedAnswer": { "@type": "Answer", "text": "No. The input must be a save written by the original Heroes of Might and Magic II. To edit an fheroes2 save use the fheroes2-save-editor project." }
+      },
+      {
+        "@type": "Question",
+        "name": "Why does my hero have no movement path after conversion?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Paths are cleared by design; fheroes2 recalculates movement on the next day." }
+      },
+      {
+        "@type": "Question",
+        "name": "Where do the original saves live?",
+        "acceptedAnswer": { "@type": "Answer", "text": "In the game's GAMES folder, for example C:\\GOG Games\\Heroes of Might and Magic II\\GAMES\\ on Windows; look for .GM1 files." }
+      }
+    ]
+  }
+  </script>
+  <link rel="preload" href="style.css" as="style">
+  <link rel="preload" href="h2conv.js" as="script">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="shell">
+    <div class="theme-toggle-container">
+      <button id="theme-toggle" class="btn btn-primary" aria-label="Toggle dark mode" aria-pressed="true">
+        <span id="theme-toggle-label">🌙 Dark Mode</span>
+      </button>
+    </div>
+
+    <header>
+      <h1><a href="/homm2-to-fheroes2/" data-text="homm2-to-fheroes2">homm2-to-fheroes2</a></h1>
+      <div class="logos" aria-hidden="true">
+        <img class="convert-logo" src="convert-logo.png" alt="Heroes of Might and Magic II to fheroes2">
+      </div>
+    </header>
+
+    <section id="main_content">
+      <div id="converter-app">
+        <div id="dropzone" class="dropzone">
+          <div class="dropzone-title">
+            <span class="dropzone-title-a">Upload and Convert</span><br>
+            <span class="dropzone-title-b">original <strong>Heroes of Might and Magic II</strong> saves to the <strong>fheroes2</strong> engine.</span>
+          </div>
+          <div class="dropzone-body">
+            <div>Select one or several <code>.GM1</code> / <code>.GMC</code> / <code>.GXC</code> files, or drop them here — they are converted right away. The files never leave your computer.</div>
+            <div class="file-note">Where are the saves? In the game's <code>GAMES</code> folder:
+              <ul>
+                <li>Windows (GOG): <code>C:\GOG Games\Heroes of Might and Magic II\GAMES\</code></li>
+                <li>Windows 98 / XP (CD install): <code>C:\Program Files\Heroes of Might and Magic II\GAMES\</code> — or a manual install: <code>C:\HEROES2\GAMES\</code></li>
+                <li>macOS / Linux: inside the game (or DOSBox/Staging) directory — e.g. <code>~/games/homm2/GAMES/</code></li>
+              </ul>
+              Look for files ending in <code>.GM1</code>.</div>
+          </div>
+        </div>
+
+        <span id="status" class="status"></span>
+
+        <div class="converter-toolbar">
+          <button id="btn-clear" class="btn btn-secondary hidden">Clear</button>
+        </div>
+
+        <input type="file" id="file-input" accept=".GM1,.GMC,.GXC,.gm1,.gmc,.gxc" multiple hidden>
+
+        <div id="results"></div>
+
+        <div id="download-all-row" class="download-all hidden">
+          <span id="download-all-note" class="status"></span>
+          <button id="btn-download-all" class="btn btn-primary">Download All (.zip)</button>
+        </div>
+
+        <div class="differs">
+          <h3>What may differ or be lost</h3>
+          <ul>
+            <li>Rumors, adventure map events, sign and sphinx texts are not carried over.</li>
+            <li>Barrier passwords are not carried over (fheroes2 generates its own; barrier colors are kept).</li>
+            <li>The original cheat flag, high scores and multiplayer saves are not supported.</li>
+            <li>Hero movement paths and the note of what each hero has already visited are not carried over — a hero on a planned route stands still (movement is recalculated the next day), and some once-per-hero bonuses (e.g. Faerie Ring) may trigger again.</li>
+            <li>Campaign saves convert to <code>.savc</code> — load them in fheroes2 from the Campaign menu.</li>
+          </ul>
+        </div>
+      </div>
+
+      <h2 id="faq">FAQ</h2>
+
+      <h3>Will fheroes2 accept the converted save?</h3>
+      <p>The output targets the fheroes2 save format versions 10032–10034 (10033 by default, read by fheroes2 1.1.15 and later). To pick another version, select it here — already loaded saves are re-converted:</p>
+      <p>
+        <label for="format-select">Format:</label>
+        <select id="format-select">
+          <option value="10033" selected>10033 (fheroes2 1.1.15+)</option>
+          <option value="10034">10034 (fheroes2 1.1.80+)</option>
+          <option value="10032">10032 (fheroes2 1.1.11+)</option>
+        </select>
+      </p>
+
+      <h3>Can I convert back?</h3>
+      <p>No. Conversion is one-way: original → fheroes2.</p>
+
+      <h3>Can I convert an edited fheroes2 save?</h3>
+      <p>No. The input must be a save written by the original Heroes of Might and Magic II. If you want to edit an fheroes2 save file instead, use <a href="https://github.com/slavamokerov/fheroes2-save-editor">fheroes2-save-editor</a>.</p>
+
+      <h3>Why does my hero have no movement path after conversion?</h3>
+      <p>Paths are cleared by design; fheroes2 recalculates movement on the next day.</p>
+
+      <h3>Something's broken or you have an idea?</h3>
+      <p>Open an <a href="https://github.com/slavamokerov/homm2-to-fheroes2/issues">issue on GitHub</a>.</p>
+    </section>
+
+    <footer>
+      <p>
+        The project is hosted on <a href="https://github.com/slavamokerov/homm2-to-fheroes2">GitHub</a>.
+        Licensed under <a href="https://github.com/slavamokerov/homm2-to-fheroes2/blob/main/LICENSE">GPL-2.0</a>.
+      </p>
+      <p class="credits">Heroes of Might and Magic II © Ubisoft. This converter does not distribute any game files. The site design is modeled after the <a href="https://ihhub.github.io/fheroes2/">fheroes2</a> website.</p>
+    </footer>
+  </div>
+
+  <script src="h2conv.js" defer></script>
+  <script src="app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://slavamokerov.github.io/homm2-to-fheroes2/sitemap.xml

@@ -1,0 +1,56 @@
+name: Bug report
+description: A save converts incorrectly, the tool crashes, or the output is broken
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report.
+        Attaching a small save file that reproduces the problem makes a fix dramatically faster.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Tool version
+      description: CLI build, or the web converter? Which format version (10032/10033/10034)?
+      placeholder: e.g. web converter, 10033
+    validations:
+      required: true
+  - type: input
+    id: save-type
+    attributes:
+      label: Input save type
+      description: .GM1, .GMC or .GXC? Which game version / campaign?
+      placeholder: e.g. .GXC, The Price of Loyalty
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Steps and, if possible, attach the save file(s) below.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: CLI output or the web page's error message, if any.
+      render: shell
+  - type: checkboxes
+    id: ownership
+    attributes:
+      label: Notes on saves
+      options:
+        - label: The attached save is from a game I own; I understand fixtures are not redistributed with the repository.
+    validations:
+      required: true

@@ -1,0 +1,15 @@
+# Local game installation (not part of the repository)
+homm2/
+
+# Local development copies (debug builds of the fheroes2 engine, etc.)
+dev/
+
+# Personal session notes (not part of the repository)
+SESSION_NOTES.md
+
+# Build output
+build/
+web/deploy/
+
+# OS files
+.DS_Store

@@ -1,0 +1,368 @@
+diff --git a/src/engine/logging.h b/src/engine/logging.h
+index d03305c5a..db9d02013 100644
+--- a/src/engine/logging.h
++++ b/src/engine/logging.h
+@@ -120,12 +120,10 @@ namespace Logging
+         sceClibPrintf( "%s", _log_strstream.str().c_str() );                                                                                                             \
+     }
+ #elif defined( MACOS_APP_BUNDLE )
+-#include <syslog.h>
++#include <iostream>
+ #define COUT( x )                                                                                                                                                        \
+     {                                                                                                                                                                    \
+-        std::ostringstream _log_strstream; /* The name was chosen on purpose to avoid name collisions with outer code blocks. */                                         \
+-        _log_strstream << x;                                                                                                                                             \
+-        syslog( LOG_WARNING, "fheroes2_log: %s", _log_strstream.str().c_str() );                                                                                         \
++        std::cerr << x << std::endl;                                                                                                                                     \
+     }
+ #elif defined( ANDROID )
+ #include <android/log.h>
+diff --git a/src/engine/serialize.cpp b/src/engine/serialize.cpp
+index e8eedfa90..e9f32f935 100644
+--- a/src/engine/serialize.cpp
++++ b/src/engine/serialize.cpp
+@@ -56,9 +56,18 @@ void StreamBase::setBigendian( bool f )
+     }
+ }
+ 
++#include <execinfo.h>
+ void StreamBase::setFail( bool f )
+ {
+     if ( f ) {
++        void * frames[32];
++        const int n = backtrace( frames, 32 );
++        char ** syms = backtrace_symbols( frames, n );
++        ERROR_LOG( "H2DBG: setFail called, backtrace:" )
++        for ( int i = 0; i < n; ++i ) {
++            ERROR_LOG( "  " << syms[i] )
++        }
++        free( syms );
+         _flags |= FAILURE;
+     }
+     else {
+diff --git a/src/fheroes2/ai/ai_hero_action.cpp b/src/fheroes2/ai/ai_hero_action.cpp
+index 78f785327..9787aa91e 100644
+--- a/src/fheroes2/ai/ai_hero_action.cpp
++++ b/src/fheroes2/ai/ai_hero_action.cpp
+@@ -1972,6 +1972,11 @@ namespace
+ 
+ void AI::HeroesAction( Heroes & hero, const int32_t dst_index )
+ {
++    fprintf( stderr, "H2DBG HeroesAction ANY dst=%d heroIdx=%d\n", dst_index, hero.GetIndex() );
++
++    if ( dst_index == 962 )
++        fprintf( stderr, "H2DBG HeroesAction ENTER dst=962 idx=%d\n", hero.GetIndex() );
++
+     const Heroes::AIHeroMeetingUpdater heroMeetingUpdater( hero );
+ 
+     const Maps::Tile & tile = world.getTile( dst_index );
+@@ -2014,6 +2019,8 @@ void AI::HeroesAction( Heroes & hero, const int32_t dst_index )
+     case MP2::OBJ_SEA_CHEST:
+     case MP2::OBJ_TREASURE_CHEST:
+         AIToTreasureChest( hero, objectType, dst_index );
++        if ( dst_index == 962 )
++            fprintf( stderr, "H2DBG after AIToTreasureChest dst=962 objectType=%d\n", static_cast<int>( objectType ) );
+         break;
+     case MP2::OBJ_ARTIFACT:
+         AIToArtifact( hero, dst_index );
+@@ -2232,6 +2239,9 @@ void AI::HeroesAction( Heroes & hero, const int32_t dst_index )
+         // After such an action, he may suffer losses in his army and/or spell points, or, conversely,
+         // acquire additional skills, so a reassessment of the hero's potential targets is required.
+         // Force this reassessment by resetting the hero's path.
++        if ( dst_index == 962 )
++            fprintf( stderr, "H2DBG HeroesAction end: dst=962 isHeroActing=%d objectType=%d\n", static_cast<int>( isHeroActing ), static_cast<int>( objectType ) );
++
+         hero.GetPath().Reset();
+ 
+         AI::Planner::Get().HeroesActionComplete( hero, dst_index, objectType );
+diff --git a/src/fheroes2/ai/ai_planner.cpp b/src/fheroes2/ai/ai_planner.cpp
+index 40f32e47f..ab2d82ac3 100644
+--- a/src/fheroes2/ai/ai_planner.cpp
++++ b/src/fheroes2/ai/ai_planner.cpp
+@@ -178,6 +178,8 @@ void AI::Planner::updateMapActionObjectCache( const Kingdom & kingdom, const int
+ 
+     if ( !isValuableAdventureMapObject( kingdom, objectType, mapIndex ) ) {
+         _mapActionObjects.erase( mapIndex );
++        if ( mapIndex == 962 || _mapActionObjects.count( 962 ) )
++            fprintf( stderr, "H2DBG cache: erase %d type %d cacheHas962=%zu\n", mapIndex, static_cast<int>( objectType ), _mapActionObjects.count( 962 ) );
+ 
+         return;
+     }
+@@ -185,4 +187,6 @@ void AI::Planner::updateMapActionObjectCache( const Kingdom & kingdom, const int
+     if ( const auto [iter, inserted] = _mapActionObjects.try_emplace( mapIndex, objectType ); !inserted ) {
+         iter->second = objectType;
+     }
++    if ( mapIndex == 962 || _mapActionObjects.count( 962 ) )
++        fprintf( stderr, "H2DBG cache: add %d type %d cacheHas962=%zu\n", mapIndex, static_cast<int>( objectType ), _mapActionObjects.count( 962 ) );
+ }
+diff --git a/src/fheroes2/ai/ai_planner_hero.cpp b/src/fheroes2/ai/ai_planner_hero.cpp
+index ecaf8f960..0c4c1e12a 100644
+--- a/src/fheroes2/ai/ai_planner_hero.cpp
++++ b/src/fheroes2/ai/ai_planner_hero.cpp
+@@ -23,6 +23,8 @@
+ #include <cmath>
+ #include <cstddef>
+ #include <cstdint>
++#include <cstdlib>
++#include <execinfo.h>
+ #include <functional>
+ #include <list>
+ #include <map>
+@@ -429,6 +431,7 @@ namespace
+             const Spell & spell = getSpellFromTile( tile );
+             if ( !spell.isValid() ) {
+                 // The spell cannot be invalid!
++                ERROR_LOG( "H2DBG shrine: invalid spell, tile=" << index << " type=" << static_cast<int>( objectType ) << " meta0=" << tile.metadata()[0] )
+                 assert( 0 );
+                 return false;
+             }
+@@ -767,6 +770,15 @@ namespace
+ 
+         default:
+             // Did you add a new action object but forget to add AI interaction for it?
++            ERROR_LOG( "H2DBG isValidObjectForHero: unhandled objectType " << static_cast<int>( objectType ) << " tile " << index )
++            {
++                void * frames[32];
++                const int n = backtrace( frames, 32 );
++                char ** syms = backtrace_symbols( frames, n );
++                for ( int i = 0; i < n; ++i )
++                    ERROR_LOG( "H2DBG bt[" << i << "] " << ( syms[i] ? syms[i] : "?" ) )
++                free( syms );
++            }
+             assert( 0 );
+             break;
+         }
+@@ -2912,6 +2924,9 @@ void AI::Planner::HeroesBeginMovement( Heroes & hero )
+ 
+ void AI::Planner::HeroesActionComplete( Heroes & hero, const int32_t tileIndex, const MP2::MapObjectType objectType )
+ {
++    if ( tileIndex == 962 )
++        fprintf( stderr, "H2DBG HeroesActionComplete called tile=962 objectType=%d active=%d\n", static_cast<int>( objectType ), static_cast<int>( hero.isActive() ) );
++
+     // This method is called upon action completion and the hero could no longer be available.
+     // So it is to check if the hero is still present.
+     if ( hero.isActive() ) {
+diff --git a/src/fheroes2/castle/castle.cpp b/src/fheroes2/castle/castle.cpp
+index c10dc519f..07cfab676 100644
+--- a/src/fheroes2/castle/castle.cpp
++++ b/src/fheroes2/castle/castle.cpp
+@@ -2485,6 +2485,7 @@ IStreamBase & operator>>( IStreamBase & stream, VecCastles & castles )
+ 
+         Castle * castle = world.getCastleEntrance( Maps::GetPoint( index ) );
+         if ( castle == nullptr ) {
++            ERROR_LOG( "H2DBG VC: castle tile index " << index << " -> no castle, setFail" )
+             // Most likely the save file is corrupted.
+             stream.setFail();
+ 
+diff --git a/src/fheroes2/game/game_io.cpp b/src/fheroes2/game/game_io.cpp
+index 78d3dafca..6beaae09d 100644
+--- a/src/fheroes2/game/game_io.cpp
++++ b/src/fheroes2/game/game_io.cpp
+@@ -196,6 +196,7 @@ fheroes2::GameMode Game::Load( const std::string & filePath )
+ 
+     fileStream >> saveFileVersionStr >> saveFileVersion;
+     if ( fileStream.fail() ) {
++        ERROR_LOG( "H2DBG: header version read failed" )
+         showGenericErrorMessage();
+         return fheroes2::GameMode::CANCEL;
+     }
+@@ -234,6 +235,7 @@ fheroes2::GameMode Game::Load( const std::string & filePath )
+     dataStream.setBigendian( true );
+ 
+     if ( !Compression::unzipStream( fileStream, dataStream ) ) {
++        ERROR_LOG( "H2DBG: unzipStream failed" )
+         showGenericErrorMessage();
+         return fheroes2::GameMode::CANCEL;
+     }
+@@ -246,8 +248,15 @@ fheroes2::GameMode Game::Load( const std::string & filePath )
+         return fheroes2::GameMode::CANCEL;
+     }
+ 
+-    dataStream >> World::Get() >> conf >> GameOver::Result::Get();
++    ERROR_LOG( "H2DBG: before World, remaining = " << dataStream.size() )
++    dataStream >> World::Get();
++    ERROR_LOG( "H2DBG: after World, remaining = " << dataStream.size() << ", fail = " << dataStream.fail() )
++    dataStream >> conf;
++    ERROR_LOG( "H2DBG: after Settings, remaining = " << dataStream.size() << ", fail = " << dataStream.fail() )
++    dataStream >> GameOver::Result::Get();
++    ERROR_LOG( "H2DBG: after GameOver, remaining = " << dataStream.size() << ", fail = " << dataStream.fail() )
+     if ( dataStream.fail() ) {
++        ERROR_LOG( "H2DBG: dataStream failed after World/Settings/GameOver, remaining = " << dataStream.size() )
+         showGenericErrorMessage();
+         return fheroes2::GameMode::CANCEL;
+     }
+@@ -267,6 +276,7 @@ fheroes2::GameMode Game::Load( const std::string & filePath )
+     uint16_t endOfDataMarker = 0;
+     dataStream >> endOfDataMarker;
+     if ( dataStream.fail() || endOfDataMarker != saveFileMagicNumber ) {
++        ERROR_LOG( "H2DBG: end marker fail, marker = " << endOfDataMarker )
+         showGenericErrorMessage();
+         return fheroes2::GameMode::CANCEL;
+     }
+diff --git a/src/fheroes2/game/game_over.cpp b/src/fheroes2/game/game_over.cpp
+index 44ad0a350..e77e69d09 100644
+--- a/src/fheroes2/game/game_over.cpp
++++ b/src/fheroes2/game/game_over.cpp
+@@ -493,6 +493,8 @@ fheroes2::GameMode GameOver::Result::checkGameOver()
+     int activeHumanColors = 0;
+ 
+     for ( const PlayerColor color : PlayerColorsVector( _colors ) ) {
++        fprintf( stderr, "H2DBG checkGameOver: color=%d kingdomIsPlay=%d colors=%d current=%d playersCount=%zu\n", static_cast<int>( color ),
++                 world.GetKingdom( color ).isPlay(), static_cast<int>( _colors ), static_cast<int>( conf.CurrentColor() ), conf.GetPlayers().size() );
+         if ( !world.GetKingdom( color ).isPlay() ) {
+             // This notification should always be displayed for the AI players. For human players, this should only be displayed in a multiplayer game for a
+             // human player who is not currently active - in all other cases, the "you have been eliminated" dialog should be displayed.
+@@ -531,6 +533,8 @@ fheroes2::GameMode GameOver::Result::checkGameOver()
+             }
+             else {
+                 result = world.CheckKingdomLoss( kingdom );
++                fprintf( stderr, "H2DBG LOSSCHECK: color=%d result=%u castles=%zu heroes=%zu lostTown=%d day=%d\n", static_cast<int>( kingdom.GetColor() ), result,
++                         kingdom.GetCastles().size(), kingdom.GetHeroes().size(), kingdom.GetLostTownDays(), world.CountDay() );
+             }
+ 
+             if ( result != GameOver::COND_NONE ) {
+diff --git a/src/fheroes2/gui/interface_focus.cpp b/src/fheroes2/gui/interface_focus.cpp
+index 3808544bf..d0fdb315e 100644
+--- a/src/fheroes2/gui/interface_focus.cpp
++++ b/src/fheroes2/gui/interface_focus.cpp
+@@ -22,6 +22,7 @@
+  ***************************************************************************/
+ 
+ #include <algorithm>
++#include <cstdio>
+ #include <cassert>
+ #include <vector>
+ 
+@@ -131,6 +132,9 @@ void Interface::AdventureMap::updateFocus()
+ 
+     const Focus & focus = player->GetFocus();
+ 
++    fprintf( stderr, "H2DBG updateFocus: color=%d focusType=%d focusIdx=%d currentColor=%d\n", static_cast<int>( player->GetColor() ), focus.first,
++             static_cast<int>( reinterpret_cast<intptr_t>( focus.second ) ), static_cast<int>( Settings::Get().CurrentColor() ) );
++
+     if ( focus.first == FOCUS_CASTLE ) {
+         Castle * castle = GetFocusCastle();
+ 
+diff --git a/src/fheroes2/heroes/heroes.cpp b/src/fheroes2/heroes/heroes.cpp
+index 32505a209..fa14680f1 100644
+--- a/src/fheroes2/heroes/heroes.cpp
++++ b/src/fheroes2/heroes/heroes.cpp
+@@ -2522,6 +2522,7 @@ IStreamBase & operator>>( IStreamBase & stream, VecHeroes & heroes )
+         }
+         else {
+             if ( !Heroes::isValidId( hid ) ) {
++                ERROR_LOG( "H2DBG VH: invalid hero id " << hid )
+                 // Most likely the save file is corrupted.
+                 stream.setFail();
+ 
+@@ -2530,6 +2531,7 @@ IStreamBase & operator>>( IStreamBase & stream, VecHeroes & heroes )
+ 
+             Heroes * hero = world.GetHeroes( hid );
+             if ( hero == nullptr ) {
++                ERROR_LOG( "H2DBG VH: hero id " << hid << " not found" )
+                 // Most likely the save file is corrupted.
+                 stream.setFail();
+ 
+diff --git a/src/fheroes2/kingdom/kingdom.cpp b/src/fheroes2/kingdom/kingdom.cpp
+index 6a32636cd..aae5d29a5 100644
+--- a/src/fheroes2/kingdom/kingdom.cpp
++++ b/src/fheroes2/kingdom/kingdom.cpp
+@@ -907,6 +907,7 @@ OStreamBase & operator<<( OStreamBase & stream, const Kingdom & kingdom )
+ IStreamBase & operator>>( IStreamBase & stream, Kingdom & kingdom )
+ {
+     stream >> kingdom.modes;
++    ERROR_LOG( "H2DBG K: modes=" << kingdom.modes << " f=" << stream.fail() )
+     static_assert( LAST_SUPPORTED_FORMAT_VERSION < FORMAT_VERSION_1109_RELEASE, "Remove the logic below." );
+     if ( Game::GetVersionOfCurrentSaveFile() < FORMAT_VERSION_1109_RELEASE ) {
+         int32_t temp;
+@@ -917,7 +918,14 @@ IStreamBase & operator>>( IStreamBase & stream, Kingdom & kingdom )
+         stream >> kingdom._color;
+     }
+ 
+-    stream >> kingdom.resource >> kingdom.lost_town_days >> kingdom.castles >> kingdom.heroes >> kingdom.recruits >> kingdom.visit_object >> kingdom.puzzle_maps
++    stream >> kingdom.resource >> kingdom.lost_town_days;
++    ERROR_LOG( "H2DBG K: res done f=" << stream.fail() )
++    stream >> kingdom.castles;
++    ERROR_LOG( "H2DBG K: castles done f=" << stream.fail() )
++    stream >> kingdom.heroes;
++    ERROR_LOG( "H2DBG K: heroes done f=" << stream.fail() )
++    fprintf( stderr, "H2DBG K color=%d: castles=%zu heroes=%zu lost_town_days=%d\n", static_cast<int>( kingdom._color ), kingdom.castles.size(), kingdom.heroes.size(), kingdom.lost_town_days );
++    stream >> kingdom.recruits >> kingdom.visit_object >> kingdom.puzzle_maps
+         >> kingdom._visitedTentsColors;
+ 
+     static_assert( LAST_SUPPORTED_FORMAT_VERSION < FORMAT_VERSION_PRE2_1100_RELEASE, "Remove the logic below." );
+diff --git a/src/fheroes2/maps/maps_tiles.cpp b/src/fheroes2/maps/maps_tiles.cpp
+index b0e98cff6..f2b78645e 100644
+--- a/src/fheroes2/maps/maps_tiles.cpp
++++ b/src/fheroes2/maps/maps_tiles.cpp
+@@ -27,6 +27,9 @@
+ #include <array>
+ #include <bitset>
+ #include <cassert>
++#include <cstdio>
++#include <cstdlib>
++#include <execinfo.h>
+ #include <cstdint>
+ #include <cstdlib>
+ #include <limits>
+@@ -476,6 +479,16 @@ MP2::MapObjectType Maps::Tile::_getMainObjectTypeUnderHero() const
+ 
+ void Maps::Tile::setMainObjectType( const MP2::MapObjectType objectType )
+ {
++    if ( _index == 962 ) {
++        fprintf( stderr, "H2DBG setMainObjectType tile=%d oldType=%d newType=%d\n", _index, static_cast<int>( _mainObjectType ), static_cast<int>( objectType ) );
++        void * frames[10];
++        const int n = backtrace( frames, 10 );
++        char ** syms = backtrace_symbols( frames, n );
++        for ( int i = 2; i < n && i < 8; ++i )
++            fprintf( stderr, "H2DBG   bt[%d] %s\n", i, syms[i] ? syms[i] : "?" );
++        free( syms );
++    }
++
+     _mainObjectType = objectType;
+ 
+     world.resetPathfinder();
+@@ -1949,6 +1962,11 @@ IStreamBase & Maps::operator>>( IStreamBase & stream, Tile & tile )
+ 
+     stream >> tile._fogColors >> tile._metadata >> tile._occupantHeroId >> tile._isTileMarkedAsRoad >> tile._groundObjectPart >> tile._topObjectPart;
+ 
++    if ( tile._index >= 1005 && tile._index <= 1025 ) {
++        fprintf( stderr, "H2DBG TILE idx=%d fog=%02x oh=%d road=%d\n", tile._index, static_cast<int>( tile._fogColors ), static_cast<int>( tile._occupantHeroId ),
++                 static_cast<int>( tile._isTileMarkedAsRoad ) );
++    }
++
+     if ( Game::GetVersionOfCurrentSaveFile() < FORMAT_VERSION_1104_RELEASE ) {
+         stream >> tile._mainObjectPart.layerType;
+     }
+diff --git a/src/fheroes2/world/world.cpp b/src/fheroes2/world/world.cpp
+index d47b62545..434f8b8c7 100644
+--- a/src/fheroes2/world/world.cpp
++++ b/src/fheroes2/world/world.cpp
+@@ -1460,8 +1460,25 @@ IStreamBase & operator>>( IStreamBase & stream, World & w )
+         stream >> w.width >> w.height;
+     }
+ 
+-    stream >> w.vec_tiles >> w.vec_heroes >> w.vec_castles >> w.vec_kingdoms >> w._customRumors >> w.vec_eventsday >> w.map_captureobj >> w._ultimateArtifact >> w._day
+-        >> w._week >> w._month >> w.heroIdAsWinCondition >> w.heroIdAsLossCondition;
++    ERROR_LOG( "H2DBG W: tiles start" << ( dynamic_cast<RWStreamBuf *>( &stream ) != nullptr ? ( " rem=" + std::to_string( dynamic_cast<RWStreamBuf *>( &stream )->size() ) ) : "" ) )
++    stream >> w.vec_tiles;
++    ERROR_LOG( "H2DBG W: heroes start, rem=" << ( dynamic_cast<RWStreamBuf *>( &stream ) != nullptr ? dynamic_cast<RWStreamBuf *>( &stream )->size() : 0 ) << " f=" << stream.fail() )
++    stream >> w.vec_heroes;
++    ERROR_LOG( "H2DBG W: castles start, rem=" << ( dynamic_cast<RWStreamBuf *>( &stream ) != nullptr ? dynamic_cast<RWStreamBuf *>( &stream )->size() : 0 ) << " f=" << stream.fail() )
++    stream >> w.vec_castles;
++    ERROR_LOG( "H2DBG W: kingdoms start, rem=" << ( dynamic_cast<RWStreamBuf *>( &stream ) != nullptr ? dynamic_cast<RWStreamBuf *>( &stream )->size() : 0 ) << " f=" << stream.fail() )
++    stream >> w.vec_kingdoms;
++    ERROR_LOG( "H2DBG W: rumors start, rem=" << ( dynamic_cast<RWStreamBuf *>( &stream ) != nullptr ? dynamic_cast<RWStreamBuf *>( &stream )->size() : 0 ) << " f=" << stream.fail() )
++    stream >> w._customRumors;
++    ERROR_LOG( "H2DBG W: events start, rem=" << ( dynamic_cast<RWStreamBuf *>( &stream ) != nullptr ? dynamic_cast<RWStreamBuf *>( &stream )->size() : 0 ) << " f=" << stream.fail() )
++    stream >> w.vec_eventsday;
++    ERROR_LOG( "H2DBG W: capture start, rem=" << ( dynamic_cast<RWStreamBuf *>( &stream ) != nullptr ? dynamic_cast<RWStreamBuf *>( &stream )->size() : 0 ) << " f=" << stream.fail() )
++    stream >> w.map_captureobj;
++    ERROR_LOG( "H2DBG W: ua start, rem=" << ( dynamic_cast<RWStreamBuf *>( &stream ) != nullptr ? dynamic_cast<RWStreamBuf *>( &stream )->size() : 0 ) << " f=" << stream.fail() )
++    stream >> w._ultimateArtifact;
++    ERROR_LOG( "H2DBG W: day start, rem=" << ( dynamic_cast<RWStreamBuf *>( &stream ) != nullptr ? dynamic_cast<RWStreamBuf *>( &stream )->size() : 0 ) << " f=" << stream.fail() )
++    stream >> w._day >> w._week >> w._month >> w.heroIdAsWinCondition >> w.heroIdAsLossCondition;
++    ERROR_LOG( "H2DBG W: map_objects start, rem=" << ( dynamic_cast<RWStreamBuf *>( &stream ) != nullptr ? dynamic_cast<RWStreamBuf *>( &stream )->size() : 0 ) << " f=" << stream.fail() )
+ 
+     static_assert( LAST_SUPPORTED_FORMAT_VERSION < FORMAT_VERSION_1010_RELEASE, "Remove the logic below." );
+     if ( Game::GetVersionOfCurrentSaveFile() < FORMAT_VERSION_1010_RELEASE ) {

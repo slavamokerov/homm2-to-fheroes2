@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: fheroes2-save-editor
+    url: https://github.com/slavamokerov/fheroes2-save-editor
+    about: Want to edit an fheroes2 save instead of converting an original one? This is the tool for that.
+  - name: fheroes2 engine
+    url: https://github.com/ihhub/fheroes2
+    about: Questions about the fheroes2 engine itself (not the conversion) belong here.

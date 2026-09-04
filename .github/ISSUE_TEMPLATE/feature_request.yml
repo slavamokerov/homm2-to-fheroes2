@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest an improvement to the converter
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The converter is deliberately one-way (original → fheroes2) and
+        focused on that single job. Requests that stay within this vision
+        have the best chance of being accepted.
+  - type: textarea
+    id: request
+    attributes:
+      label: What would you like to see?
+      description: A clear description of the improvement and why it matters.
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Current behavior / workaround
+      description: What does the tool do today, and how do you cope with it?
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Maps, save types, or scenarios where this matters.
