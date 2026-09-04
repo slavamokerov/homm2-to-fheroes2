@@ -1,6 +1,7 @@
 # homm2-to-fheroes2
 
 [![License: GPL-2.0](https://img.shields.io/badge/License-GPL--2.0-blue.svg)](LICENSE)
+[![CI](https://github.com/slavamokerov/homm2-to-fheroes2/actions/workflows/ci.yml/badge.svg)](https://github.com/slavamokerov/homm2-to-fheroes2/actions/workflows/ci.yml)
 
 ![homm2-to-fheroes2](web/convert-logo.png)
 
@@ -36,7 +37,7 @@ computer.
 
 ## Command line
 
-The same converter as a small CLI (no GUI):
+The same converter as a CLI:
 
 ```bash
 homm2-to-fheroes2 [--format 10032|10033|10034] <input.GM1|GMC|GXC> [output.sav|savc] [more inputs…]
@@ -154,8 +155,7 @@ cleared by design; fheroes2 recalculates movement on the next day.
 
 The original save format was recovered thanks to the
 [project-ironfist](https://github.com/jkoppel/project-ironfist)
-decompilation — a huge thank you to **Jesse Koppel** and all of its
-contributors; their reverse-engineering work is the foundation of
+decompilation; their reverse-engineering work is the foundation of
 [`docs/HOMM2_SAVE_FORMAT.md`](docs/HOMM2_SAVE_FORMAT.md). The findings
 were verified byte-for-byte against saves made with the original game.
 

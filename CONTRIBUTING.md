@@ -1,7 +1,7 @@
 # Contributing to homm2-to-fheroes2
 
-Thanks for your interest in contributing! This is a small, focused
-project, so the process is deliberately lightweight.
+Thanks for your interest in contributing! The project is deliberately
+focused, and its process is lightweight.
 
 ## Project vision
 
