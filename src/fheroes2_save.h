@@ -13,7 +13,7 @@
 
 #include "homm2_save.h"
 
-namespace fh2 {
+namespace h2conv {
 
 struct ConvertOptions {
     // Output format version (string/number). Supported: 10032 (fheroes2
@@ -213,4 +213,4 @@ std::vector<uint8_t> serializeWorld( const WorldData & world, uint16_t formatVer
 // Builds a complete .sav file (header + zlib-compressed stream).
 std::vector<uint8_t> buildSaveFile( const h2::Header & srcHeader, const WorldData & world, const ConvertOptions & options );
 
-} // namespace fh2
+} // namespace h2conv

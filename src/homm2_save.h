@@ -59,6 +59,9 @@ struct Header {
     std::vector<uint8_t> playerDead;     // 6
     std::vector<uint8_t> playerFactions; // 6
     std::vector<uint8_t> playerColors;   // 6
+    std::vector<uint8_t> playerMayBeHuman; // 6 — somePlayerCodeOr10IfMayBeHuman (10 = human)
+    uint8_t humanPlayers = 0;              // numHumanPlayers
+    uint8_t curPlayer = 0;                 // giCurPlayer — current player index
     uint8_t winConditionType = 0;
     uint8_t lossConditionType = 0;
     bool allowNormalVictory = true;

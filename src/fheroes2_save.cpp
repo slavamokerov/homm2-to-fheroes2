@@ -7,7 +7,7 @@
 #include <cstring>
 #include <ctime>
 
-namespace fh2 {
+namespace h2conv {
 
 namespace {
 
@@ -274,7 +274,11 @@ void writePlayer( Writer & w, const WorldData::PlayerOut & p )
 
 void writeFileInfo( Writer & w, const h2::Header & h, const ConvertOptions & opt, uint32_t timestamp )
 {
-    w.str( "" ); // filename (unused)
+    // Non-empty filename (fallback: the map name) — required by fh2core's
+    // SaveFile::findPlayers, which bails when the header filename is empty and so
+    // never fills the player list (humanColors()); that made the poster's "fog
+    // auto" POV wrong for HoMM2-converted saves.
+    w.str( h.mapName );
     w.str( h.mapName );
     w.str( h.description );
     w.u16( static_cast<uint16_t>( h.mapWidth ) );
@@ -465,4 +469,4 @@ std::vector<uint8_t> buildSaveFile( const h2::Header & srcHeader, const WorldDat
     return out.take();
 }
 
-} // namespace fh2
+} // namespace h2conv

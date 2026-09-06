@@ -12,7 +12,7 @@ namespace h2 {
 // Converts a parsed original save into the fheroes2 world and the save
 // options (format version, campaign fields). Returns false if the input
 // cannot be converted (e.g. an unsupported variant).
-bool convert( const Save & src, fh2::WorldData & world, fh2::ConvertOptions & options );
+bool convert( const Save & src, h2conv::WorldData & world, h2conv::ConvertOptions & options );
 
 // Utility: original creature id -> fheroes2 monster id.
 int32_t mapCreature( int8_t id );

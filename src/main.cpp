@@ -62,15 +62,15 @@ int convertFile( const std::string & input, const std::string & output )
         return 1;
     }
 
-    fh2::WorldData world;
-    fh2::ConvertOptions options;
+    h2conv::WorldData world;
+    h2conv::ConvertOptions options;
     options.formatVersion = g_formatVersion;
     if ( !h2::convert( save, world, options ) ) {
         std::cerr << input << ": conversion failed" << std::endl;
         return 1;
     }
 
-    const std::vector<uint8_t> result = fh2::buildSaveFile( save.header, world, options );
+    const std::vector<uint8_t> result = h2conv::buildSaveFile( save.header, world, options );
     if ( result.empty() ) {
         std::cerr << input << ": failed to build the fheroes2 save" << std::endl;
         return 1;

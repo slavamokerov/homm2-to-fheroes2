@@ -135,6 +135,12 @@ bool parseSave( const std::vector<uint8_t> & data, Save & out )
 
     // Fixed header fields after SMapHeader.
     h.difficulty8 = static_cast<uint8_t>( data[wOff + 452] ); // 0..4: easy..impossible
+    // somePlayerCodeOr10IfMayBeHuman[6] (value 10 = player may be human).
+    r.p = wOff + 446;
+    h.playerMayBeHuman.assign( 6, 0 );
+    for ( uint8_t & v : h.playerMayBeHuman )
+        v = r.u8();
+    h.humanPlayers = data[wOff + 475]; // numHumanPlayers
     r.p = wOff + 428 + 65;
     r.u8(); // gbIAmGreatest
     h.difficulty = r.i16();
@@ -173,8 +179,8 @@ bool parseSave( const std::vector<uint8_t> & data, Save & out )
     r.u32(); // giMapChangeCtr
     h.slotName = r.fixedString( 14 ); // save name in the game's Save/Load menu
     r.u8();      // numPlayers (stored again, use header value)
-    r.u8();      // giCurPlayer
-    r.u8();      // couldBeNumDefeatedPlayers
+    h.curPlayer = r.u8();  // giCurPlayer (human / current player index)
+    r.u8();                // couldBeNumDefeatedPlayers
     h.playerDead.assign( 6, 0 );
     for ( uint8_t & v : h.playerDead ) v = r.u8();
     h.playerAlive.assign( 6, 0 );

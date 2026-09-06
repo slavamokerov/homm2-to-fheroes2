@@ -94,12 +94,12 @@ void testFixture( const std::string & name, bool expectCampaign )
     check( save.header.isCampaign == expectCampaign, "campaign detection" );
 
     for ( uint16_t version : { uint16_t( 10032 ), uint16_t( 10033 ), uint16_t( 10034 ) } ) {
-        fh2::WorldData world;
-        fh2::ConvertOptions options;
+        h2conv::WorldData world;
+        h2conv::ConvertOptions options;
         options.formatVersion = version;
         check( h2::convert( save, world, options ), "convert (format " + std::to_string( version ) + ")" );
 
-        const std::vector<uint8_t> out = fh2::buildSaveFile( save.header, world, options );
+        const std::vector<uint8_t> out = h2conv::buildSaveFile( save.header, world, options );
         check( !out.empty(), "build (format " + std::to_string( version ) + ")" );
         if ( out.empty() )
             continue;
@@ -234,8 +234,8 @@ void testSlugfestReference()
         return;
     }
 
-    fh2::WorldData world;
-    fh2::ConvertOptions options;
+    h2conv::WorldData world;
+    h2conv::ConvertOptions options;
     options.formatVersion = 10033;
     if ( !h2::convert( save, world, options ) ) {
         check( false, "convert BASE.GM1" );
@@ -258,7 +258,7 @@ void testSlugfestReference()
     int passabilityDiffs = 0;
 
     for ( size_t i = 0; i < world.tiles.size(); ++i ) {
-        const fh2::WorldData::TileOut & t = world.tiles[i];
+        const h2conv::WorldData::TileOut & t = world.tiles[i];
         const ReferenceTile & r = refTiles[i];
 
         if ( t.mainIcnType != r.mainIcn || t.mainIcnIndex != r.mainFrame || t.mainLayerType != r.mainLayer )
@@ -330,7 +330,7 @@ int main()
         check( mapCreature( -1 ) == 0, "creature empty -> UNKNOWN" );
         check( mapRace( 0 ) == 0x01, "race Knight" );
         check( mapRace( 5 ) == 0x20, "race Necromancer" );
-        check( mapColor( 2 ) == 0x04, "color red" );
+        check( mapColor( 2 ) == 0x01, "color red" );
         check( mapColor( 5 ) == 0x20, "color purple" );
         check( mapBuildings( 0x38, 1 ) == ( 0x00000004 | 0x00000008 | 0x00080000 | 0x00004000 ), "buildings base set + guild 1" );
         check( ( mapBuildings( 1u << 25, 1 ) & 0x04000000 ) != 0, "buildings cottage upgrade bit" );

@@ -155,14 +155,14 @@ std::string convertSave( const std::string & name, const emscripten::val & data,
                    + ",\"error\":\"Not a supported Heroes of Might and Magic II save (.GM1 / .GMC / .GXC).\"}";
         }
 
-        fh2::WorldData world;
-        fh2::ConvertOptions options;
+        h2conv::WorldData world;
+        h2conv::ConvertOptions options;
         options.formatVersion = static_cast<uint16_t>( version );
         if ( !h2::convert( save, world, options ) ) {
             return "{\"ok\":false,\"name\":" + jsonString( name ) + ",\"error\":\"Conversion failed.\"}";
         }
 
-        g_lastResult = fh2::buildSaveFile( save.header, world, options );
+        g_lastResult = h2conv::buildSaveFile( save.header, world, options );
         if ( g_lastResult.empty() ) {
             return "{\"ok\":false,\"name\":" + jsonString( name ) + ",\"error\":\"Failed to build the fheroes2 save.\"}";
         }

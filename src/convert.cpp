@@ -26,9 +26,12 @@ int32_t mapRace( uint8_t faction )
 
 uint8_t mapColor( uint8_t color )
 {
+    // HoMM2 playerData.color (0=blue,1=green,2=red,3=yellow,4=orange,5=purple)
+    // -> fheroes2 PlayerColor bit (RED=1,GREEN=2,BLUE=4,YELLOW=8,ORANGE=16,PURPLE=32).
+    static const uint8_t kMap[6] = { 0x04, 0x02, 0x01, 0x08, 0x10, 0x20 };
     if ( color > 5 )
         return 0;
-    return static_cast<uint8_t>( 1 << color );
+    return kMap[color];
 }
 
 uint32_t mapBuildings( uint32_t homm2Flags, uint8_t mageGuildLevel )
@@ -293,7 +296,7 @@ int32_t mapArtifact( int8_t id )
     return static_cast<int32_t>( id ) + 1;
 }
 
-void convertHero( const Hero & src, fh2::WorldData::HeroOut & out, uint8_t colorBit )
+void convertHero( const Hero & src, h2conv::WorldData::HeroOut & out, uint8_t colorBit )
 {
     out.attack = src.primarySkills[0];
     out.defense = src.primarySkills[1];
@@ -339,7 +342,7 @@ void convertHero( const Hero & src, fh2::WorldData::HeroOut & out, uint8_t color
     out.lastGroundRegion = 0;
 }
 
-void convertCastle( const Castle & src, fh2::WorldData::CastleOut & out, uint8_t colorBit )
+void convertCastle( const Castle & src, h2conv::WorldData::CastleOut & out, uint8_t colorBit )
 {
     out.x = static_cast<int16_t>( src.x );
     out.y = static_cast<int16_t>( src.y );
@@ -412,7 +415,7 @@ uint16_t fixObjectType( uint16_t objectType, uint8_t mainIcn, uint8_t mainFrame 
 
 // Mirrors Maps::Tile::getTileIndependentPassability for a tile whose parts
 // and main object type (the type "under the hero") are known.
-uint16_t tileIndependentPassability( const fh2::WorldData::TileOut & t, uint16_t objectType )
+uint16_t tileIndependentPassability( const h2conv::WorldData::TileOut & t, uint16_t objectType )
 {
     uint16_t passability = fh::kDirAll;
     auto applyPart = [&]( uint8_t layer, uint8_t icn, bool isMain, uint16_t & out ) {
@@ -444,7 +447,7 @@ uint16_t tileIndependentPassability( const fh2::WorldData::TileOut & t, uint16_t
     return passability;
 }
 
-void convertTiles( const Save & src, fh2::WorldData & world, std::vector<uint16_t> & underHeroTypes )
+void convertTiles( const Save & src, h2conv::WorldData & world, std::vector<uint16_t> & underHeroTypes )
 {
     const int w = src.header.mapWidth;
     const int h = src.header.mapHeight;
@@ -458,7 +461,7 @@ void convertTiles( const Save & src, fh2::WorldData & world, std::vector<uint16_
         for ( int x = 0; x < w; ++x ) {
             const size_t pos = static_cast<size_t>( y ) * w + x;
             const MapCell & cell = src.tiles[pos];
-            fh2::WorldData::TileOut & t = world.tiles[pos];
+            h2conv::WorldData::TileOut & t = world.tiles[pos];
 
             t.index = static_cast<int32_t>( pos );
             t.terrainImageIndex = cell.groundIndex;
@@ -468,8 +471,8 @@ void convertTiles( const Save & src, fh2::WorldData & world, std::vector<uint16_
             t.terrainFlags = static_cast<uint8_t>( cell.flags & 0x03 );
             t.fogColors = 0;
 
-            std::vector<fh2::WorldData::ObjectPart> ground;
-            std::vector<fh2::WorldData::ObjectPart> top;
+            std::vector<h2conv::WorldData::ObjectPart> ground;
+            std::vector<h2conv::WorldData::ObjectPart> top;
 
             // Bottom part of the map cell itself (the MP2 tile equivalent).
             const uint8_t mainIcn = cell.bitfield1 >> 2;
@@ -500,7 +503,7 @@ void convertTiles( const Save & src, fh2::WorldData & world, std::vector<uint16_
             // Mirrors Maps::Tile::sortObjectParts: ground parts are stably
             // sorted by descending layer type and the last non-flag part
             // becomes the main object part.
-            std::stable_sort( ground.begin(), ground.end(), []( const fh2::WorldData::ObjectPart & a, const fh2::WorldData::ObjectPart & b ) {
+            std::stable_sort( ground.begin(), ground.end(), []( const h2conv::WorldData::ObjectPart & a, const h2conv::WorldData::ObjectPart & b ) {
                 return a.layer > b.layer;
             } );
             int mainPos = -1;
@@ -549,14 +552,14 @@ void convertTiles( const Save & src, fh2::WorldData & world, std::vector<uint16_
                 };
                 uint16_t real = polTypeOfPart( t.mainIcnType, t.mainIcnIndex );
                 if ( real == 0 ) {
-                    for ( const fh2::WorldData::ObjectPart & p : t.groundParts ) {
+                    for ( const h2conv::WorldData::ObjectPart & p : t.groundParts ) {
                         real = polTypeOfPart( p.icnType, p.icnIndex );
                         if ( real != 0 )
                             break;
                     }
                 }
                 if ( real == 0 ) {
-                    for ( const fh2::WorldData::ObjectPart & p : t.topParts ) {
+                    for ( const h2conv::WorldData::ObjectPart & p : t.topParts ) {
                         real = polTypeOfPart( p.icnType, p.icnIndex );
                         if ( real != 0 )
                             break;
@@ -657,7 +660,7 @@ void convertTiles( const Save & src, fh2::WorldData & world, std::vector<uint16_
             // road sprite (see Maps::Tile::isSpriteRoad).
             t.isRoad = isRoadSprite( t.mainIcnType, t.mainIcnIndex );
             if ( !t.isRoad ) {
-                for ( const fh2::WorldData::ObjectPart & p : t.groundParts ) {
+                for ( const h2conv::WorldData::ObjectPart & p : t.groundParts ) {
                     if ( isRoadSprite( p.icnType, p.icnIndex ) ) {
                         t.isRoad = true;
                         break;
@@ -713,7 +716,7 @@ void convertTiles( const Save & src, fh2::WorldData & world, std::vector<uint16_
     };
 
     const size_t tileCount = world.tiles.size();
-    const auto forEachPart = [&]( const fh2::WorldData::TileOut & t, const std::function<void( uint32_t, uint8_t, uint8_t )> & fn ) {
+    const auto forEachPart = [&]( const h2conv::WorldData::TileOut & t, const std::function<void( uint32_t, uint8_t, uint8_t )> & fn ) {
         if ( t.mainIcnType != fh::kIcnUnknown )
             fn( t.mainUid, t.mainIcnType, t.mainIcnIndex );
         for ( const auto & p : t.groundParts )
@@ -800,7 +803,7 @@ void convertTiles( const Save & src, fh2::WorldData & world, std::vector<uint16_
     }
 
     // A flag shares the UID of the object on the same tile.
-    for ( fh2::WorldData::TileOut & t : world.tiles ) {
+    for ( h2conv::WorldData::TileOut & t : world.tiles ) {
         uint32_t flagUid = 0;
         uint32_t objectUid = 0;
         forEachPart( t, [&]( uint32_t uid, uint8_t icn, uint8_t ) {
@@ -814,7 +817,7 @@ void convertTiles( const Save & src, fh2::WorldData & world, std::vector<uint16_
     }
 
     // Re-assign uids to the canonical root values.
-    for ( fh2::WorldData::TileOut & t : world.tiles ) {
+    for ( h2conv::WorldData::TileOut & t : world.tiles ) {
         if ( t.mainUid != 0 )
             t.mainUid = makeRoot( t.mainUid );
         for ( auto & p : t.groundParts )
@@ -827,9 +830,9 @@ void convertTiles( const Save & src, fh2::WorldData & world, std::vector<uint16_
 // Fills the metadata of resource-producing tiles: mines store the resource
 // type in the EXTRAOVR frame (fheroes2 recovers it the same way when
 // loading maps). Income per day mirrors ProfitConditions::FromMine.
-void fillResourceMetadata( fh2::WorldData & world )
+void fillResourceMetadata( h2conv::WorldData & world )
 {
-    for ( fh2::WorldData::TileOut & t : world.tiles ) {
+    for ( h2conv::WorldData::TileOut & t : world.tiles ) {
         switch ( t.mainObjectType ) {
         case 151: { // OBJ_MINE
             uint8_t frame = 255;
@@ -904,15 +907,15 @@ void fillResourceMetadata( fh2::WorldData & world )
 
 // Second pass of Maps::World::updatePassabilities: adjusts the initial
 // per-tile passability based on neighbouring tiles.
-void finalizePassability( const fh2::WorldData & world, const std::vector<uint16_t> & underHeroTypes, std::vector<uint16_t> & passability )
+void finalizePassability( const h2conv::WorldData & world, const std::vector<uint16_t> & underHeroTypes, std::vector<uint16_t> & passability )
 {
     const int w = world.width;
     const int h = world.height;
     const auto & tiles = world.tiles;
 
-    const auto isWaterTile = []( const fh2::WorldData::TileOut & t ) { return t.terrainImageIndex < 30; };
+    const auto isWaterTile = []( const h2conv::WorldData::TileOut & t ) { return t.terrainImageIndex < 30; };
 
-    const auto doesObjectExist = [&]( const fh2::WorldData::TileOut & t, uint32_t uid ) {
+    const auto doesObjectExist = [&]( const h2conv::WorldData::TileOut & t, uint32_t uid ) {
         if ( t.mainUid == uid && !isTransparentLayer( t.mainLayerType ) )
             return true;
         for ( const auto & part : t.groundParts ) {
@@ -922,7 +925,7 @@ void finalizePassability( const fh2::WorldData & world, const std::vector<uint16
         return false;
     };
 
-    const auto isAnyTallObject = [&]( const fh2::WorldData::TileOut & t, int pos ) {
+    const auto isAnyTallObject = [&]( const h2conv::WorldData::TileOut & t, int pos ) {
         if ( pos < w )
             return false; // first row: cannot be tall
         std::vector<uint32_t> uids;
@@ -932,7 +935,7 @@ void finalizePassability( const fh2::WorldData & world, const std::vector<uint16
             if ( !isTransparentLayer( part.layer ) )
                 uids.push_back( part.uid );
         }
-        const fh2::WorldData::TileOut & topTile = tiles[pos - w];
+        const h2conv::WorldData::TileOut & topTile = tiles[pos - w];
         for ( uint32_t uid : uids ) {
             for ( const auto & part : topTile.topParts ) {
                 if ( part.uid == uid )
@@ -942,7 +945,7 @@ void finalizePassability( const fh2::WorldData & world, const std::vector<uint16
         return false;
     };
 
-    const auto isShadowTile = []( const fh2::WorldData::TileOut & t ) {
+    const auto isShadowTile = []( const h2conv::WorldData::TileOut & t ) {
         if ( !isShadowSprite( t.mainIcnType, t.mainIcnIndex ) )
             return false;
         for ( const auto & part : t.groundParts ) {
@@ -975,7 +978,7 @@ void finalizePassability( const fh2::WorldData & world, const std::vector<uint16
                 if ( nx < 0 || nx >= w )
                     continue;
                 const int index = ny * w + nx;
-                const fh2::WorldData::TileOut & found = tiles[index];
+                const h2conv::WorldData::TileOut & found = tiles[index];
                 if ( found.mainObjectType != correctedType )
                     continue;
                 if ( found.mainUid != 0 && uids.count( found.mainUid ) > 0 )
@@ -1008,17 +1011,17 @@ void finalizePassability( const fh2::WorldData & world, const std::vector<uint16
         uint16_t p = passability[pos];
         if ( p == 0 )
             continue;
-        const fh2::WorldData::TileOut & t = tiles[pos];
+        const h2conv::WorldData::TileOut & t = tiles[pos];
         const int tx = pos % w;
         const int ty = pos / w;
 
         if ( ( p & 0x0001 ) && tx > 0 ) { // TOP_LEFT
-            const fh2::WorldData::TileOut & left = tiles[pos - 1];
+            const h2conv::WorldData::TileOut & left = tiles[pos - 1];
             if ( isAnyTallObject( left, pos - 1 ) && ( passability[pos - 1] & 0x0002 ) == 0 )
                 p &= ~0x0001;
         }
         if ( ( p & 0x0004 ) && tx < w - 1 ) { // TOP_RIGHT
-            const fh2::WorldData::TileOut & right = tiles[pos + 1];
+            const h2conv::WorldData::TileOut & right = tiles[pos + 1];
             if ( isAnyTallObject( right, pos + 1 ) && ( passability[pos + 1] & 0x0002 ) == 0 )
                 p &= ~0x0004;
         }
@@ -1039,7 +1042,7 @@ void finalizePassability( const fh2::WorldData & world, const std::vector<uint16
             passability[pos] = p;
             continue;
         }
-        const fh2::WorldData::TileOut & bottom = tiles[pos + w];
+        const h2conv::WorldData::TileOut & bottom = tiles[pos + w];
         if ( !isWaterTile( t ) && isWaterTile( bottom ) ) {
             p = 0;
             passability[pos] = p;
@@ -1130,12 +1133,12 @@ void finalizePassability( const fh2::WorldData & world, const std::vector<uint16
 
 } // namespace
 
-bool convert( const Save & src, fh2::WorldData & world, fh2::ConvertOptions & options )
+bool convert( const Save & src, h2conv::WorldData & world, h2conv::ConvertOptions & options )
 {
     const Header & h = src.header;
-    world = fh2::WorldData();
+    world = h2conv::WorldData();
     const uint16_t requestedVersion = options.formatVersion;
-    options = fh2::ConvertOptions();
+    options = h2conv::ConvertOptions();
     options.formatVersion = requestedVersion;
     options.polResources = h.expansion || h.isPoLCampaign;
     options.campaign = h.isCampaign;
@@ -1185,7 +1188,7 @@ bool convert( const Save & src, fh2::WorldData & world, fh2::ConvertOptions & op
         const int slot = src.players[i].color; // 0..5, matches Color::GetIndex
         if ( slot < 0 || slot > 5 )
             continue;
-        fh2::WorldData::KingdomOut & k = world.kingdoms[slot];
+        h2conv::WorldData::KingdomOut & k = world.kingdoms[slot];
         if ( h.playerDead[i] ) {
             k.color = 0; // empty kingdom record
             continue;
@@ -1209,7 +1212,7 @@ bool convert( const Save & src, fh2::WorldData & world, fh2::ConvertOptions & op
         auto it = colorToKingdom.find( playerColorBits[i] );
         if ( it == colorToKingdom.end() )
             continue;
-        fh2::WorldData::KingdomOut & k = world.kingdoms[it->second];
+        h2conv::WorldData::KingdomOut & k = world.kingdoms[it->second];
         for ( int r = 0; r < 7; ++r )
             k.resources[r] = static_cast<int32_t>( pl.resources[r] );
     }
@@ -1221,7 +1224,7 @@ bool convert( const Save & src, fh2::WorldData & world, fh2::ConvertOptions & op
         const Castle & c = src.castles[ci];
         if ( !c.exists )
             continue;
-        fh2::WorldData::CastleOut out;
+        h2conv::WorldData::CastleOut out;
         uint8_t cbit = ( c.ownerIdx >= 0 && c.ownerIdx < 6 ) ? playerColorBits[c.ownerIdx] : 0;
         convertCastle( c, out, cbit );
         int32_t newIdx = static_cast<int32_t>( world.castles.size() );
@@ -1250,7 +1253,7 @@ bool convert( const Save & src, fh2::WorldData & world, fh2::ConvertOptions & op
                 world.kingdoms[it->second].heroIndices.push_back( id );
         }
     }
-    for ( fh2::WorldData::HeroOut & out : world.heroes ) {
+    for ( h2conv::WorldData::HeroOut & out : world.heroes ) {
         if ( out.name.empty() && out.id == 0 && out.centerX == 0 && out.centerY == 0 ) {
             out.centerX = -1;
             out.centerY = -1;
@@ -1264,7 +1267,7 @@ bool convert( const Save & src, fh2::WorldData & world, fh2::ConvertOptions & op
         auto it = colorToKingdom.find( playerColorBits[i] );
         if ( it == colorToKingdom.end() )
             continue;
-        fh2::WorldData::KingdomOut & k = world.kingdoms[it->second];
+        h2conv::WorldData::KingdomOut & k = world.kingdoms[it->second];
         std::vector<int32_t> ordered;
         for ( int8_t hIdx : pl.heroesOwned ) {
             if ( hIdx >= 0 && hIdx < 54 )
@@ -1286,7 +1289,7 @@ bool convert( const Save & src, fh2::WorldData & world, fh2::ConvertOptions & op
     for ( const Castle & c : src.castles ) {
         if ( !c.exists || c.x >= h.mapWidth || c.y >= h.mapHeight )
             continue;
-        fh2::WorldData::TileOut & t = world.tiles[static_cast<size_t>( c.y ) * h.mapWidth + c.x];
+        h2conv::WorldData::TileOut & t = world.tiles[static_cast<size_t>( c.y ) * h.mapWidth + c.x];
         t.mainObjectType = 163; // MP2::OBJ_CASTLE
     }
 
@@ -1299,7 +1302,7 @@ bool convert( const Save & src, fh2::WorldData & world, fh2::ConvertOptions & op
         const int32_t id = static_cast<int32_t>( hero.heroID ) + 1;
         if ( id < 1 || id >= 73 )
             continue;
-        fh2::WorldData::TileOut & t = world.tiles[static_cast<size_t>( hero.y ) * h.mapWidth + hero.x];
+        h2conv::WorldData::TileOut & t = world.tiles[static_cast<size_t>( hero.y ) * h.mapWidth + hero.x];
         if ( t.mainObjectType == 183 )
             continue;
         underHeroTypes[static_cast<size_t>( hero.y ) * h.mapWidth + hero.x] = t.mainObjectType;
@@ -1340,7 +1343,7 @@ bool convert( const Save & src, fh2::WorldData & world, fh2::ConvertOptions & op
     for ( const Boat & b : src.boats ) {
         if ( b.owner == 0xFF || b.x >= h.mapWidth || b.y >= h.mapHeight )
             continue;
-        fh2::WorldData::TileOut & t = world.tiles[static_cast<size_t>( b.y ) * h.mapWidth + b.x];
+        h2conv::WorldData::TileOut & t = world.tiles[static_cast<size_t>( b.y ) * h.mapWidth + b.x];
         t.boatOwnerColor = ( b.owner < 6 ) ? playerColorBits[b.owner] : 0;
     }
 
@@ -1437,7 +1440,7 @@ bool convert( const Save & src, fh2::WorldData & world, fh2::ConvertOptions & op
                 break;
             }
         }
-        fh2::WorldData::PlayerOut p;
+        h2conv::WorldData::PlayerOut p;
         p.color = cbit;
         p.modes = 0x2000; // ST_INGAME (otherwise the player is considered eliminated)
         p.control = 1; // CONTROL_HUMAN (the human flag is set below)
@@ -1456,6 +1459,8 @@ bool convert( const Save & src, fh2::WorldData & world, fh2::ConvertOptions & op
     // Control flags: the original marks human players in playerAlive
     // (gbHumanPlayer); the rest are AI. The game area camera is restored
     // from the player's focus (FOCUS_HEROES + the hero's tile index).
+    // Control flags: the human player is giCurPlayer (an index into players[],
+    // the player whose turn it is). Only that one is CONTROL_HUMAN; the rest are AI.
     for ( size_t i = 0; i < world.players.size(); ++i ) {
         int srcIdx = -1;
         for ( int j = 0; j < 6; ++j ) {
@@ -1464,7 +1469,7 @@ bool convert( const Save & src, fh2::WorldData & world, fh2::ConvertOptions & op
                 break;
             }
         }
-        world.players[i].control = ( srcIdx >= 0 && h.playerAlive[srcIdx] ) ? 1 : 4;
+        world.players[i].control = ( srcIdx >= 0 && srcIdx == static_cast<int>( h.curPlayer ) ) ? 1 : 4;
         if ( srcIdx >= 0 ) {
             world.players[i].race = mapRace( h.playerFactions[srcIdx] );
 
