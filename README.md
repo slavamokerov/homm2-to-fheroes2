@@ -96,7 +96,7 @@ cmake --build build
 
 Dependencies: CMake ≥ 3.16, a C++17 compiler, zlib.
 
-The web version requires the [Emscripten SDK](https://emscripten.org/)
+The web version requires the [Emscripten SDK](https://github.com/emscripten-core/emscripten)
 (`emcc`/`em++` on `PATH`):
 
 ```bash
@@ -139,7 +139,17 @@ save made by fheroes2 itself.
 
 **Will fheroes2 accept the converted save?** The output targets the
 fheroes2 save format versions 10032–10034 (10033 by default, read by
-fheroes2 1.1.15 and later).
+fheroes2 1.1.15 and later):
+- 10032 — fheroes2 1.1.11+
+- 10033 — fheroes2 1.1.15+ (default, widest compatibility)
+- 10034 — fheroes2 1.1.80+
+
+Pick a version in the [web version](https://slavamokerov.github.io/homm2-to-fheroes2/)
+or on the CLI with `--format`:
+
+```bash
+homm2-to-fheroes2 --format 10034 save.GM1 save.sav
+```
 
 **Can I convert back?** No. Conversion is one-way: original → fheroes2.
 
@@ -150,6 +160,9 @@ edit an fheroes2 save file instead, use
 
 **Why does my hero have no movement path after conversion?** Paths are
 cleared by design; fheroes2 recalculates movement on the next day.
+
+**Something's broken or you have an idea?** Open an
+[issue on GitHub](https://github.com/slavamokerov/homm2-to-fheroes2/issues).
 
 ## Credits
 

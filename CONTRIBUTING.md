@@ -41,7 +41,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
-Web version (requires the [Emscripten SDK](https://emscripten.org/) on
+Web version (requires the [Emscripten SDK](https://github.com/emscripten-core/emscripten) on
 PATH):
 
 ```bash

@@ -1,7 +1,8 @@
 # HoMM2 save file format (`.GM1` / `.GMC` / `.GXC`)
 
 The save format of the original Heroes of Might and Magic II (The Succession
-Wars and The Price of Loyalty), recovered from the project-ironfist
+Wars and The Price of Loyalty), recovered from the
+[project-ironfist](https://github.com/jkoppel/project-ironfist)
 decompilation (`game::SaveGame`, `playerData::Write`, `hero::Write`,
 `fullMap::Write` in HEROES2W.c / HEROES2W.h) and verified byte-for-byte
 against real saves (`tests/fixtures/*`, diff pairs with a single in-game
