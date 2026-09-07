@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -62,6 +63,282 @@ uint32_t be32( const uint8_t * p )
            | ( static_cast<uint32_t>( p[2] ) << 8 ) | static_cast<uint32_t>( p[3] );
 }
 
+// The 13-bit "extraInfo" field of a homm2 map cell (bitfield4 holds 3 flag
+// bits in the low positions; extraInfo is the remainder).
+uint32_t extraInfo( const h2::MapCell & cell )
+{
+    return static_cast<uint32_t>( cell.bitfield4 >> 3 );
+}
+
+// Checks the structural invariants of the produced fheroes2 world. These are
+// the layout traps discovered while fixing save-load failures (see
+// SESSION_NOTES.md): Kingdoms must always be 7 records, dwelling counts 6,
+// BagArtifacts 14 slots, and the human-flag / auto-color detection.
+void verifyWorldStructure( const h2::Save & save, const h2conv::WorldData & world )
+{
+    // Kingdoms: fheroes2 always serializes std::array<Kingdom, 7>.
+    check( world.kingdoms.size() == 7, "kingdoms size == 7" );
+
+    // Every castle reference must point at a tile whose object type is the
+    // castle (mapObjectType == 163 = MP2::OBJ_CASTLE). When a hero stands on
+    // the castle entrance the tile is OBJ_HERO (183) and the castle type is
+    // recovered via hero->getObjectTypeUnderHero(), so both are valid.
+    {
+        int badCastle = 0;
+        int badHeroId = 0;
+        int noCastleTile = 0;
+        for ( const auto & k : world.kingdoms ) {
+            for ( int32_t idx : k.castleIndices ) {
+                if ( idx < 0 || idx >= static_cast<int32_t>( world.tiles.size() ) ) {
+                    ++noCastleTile;
+                    continue;
+                }
+                const uint16_t ot = world.tiles[static_cast<size_t>( idx )].mainObjectType;
+                if ( ot != 163 && ot != 183 )
+                    ++badCastle;
+            }
+            for ( int32_t id : k.heroIndices ) {
+                if ( id < 1 || id >= 73 )
+                    ++badHeroId;
+            }
+        }
+        check( badCastle == 0, "kingdom castleIndices point to OBJ_CASTLE tiles (" + std::to_string( badCastle ) + " bad)" );
+        check( badHeroId == 0, "kingdom heroIndices are valid id 1..72 (" + std::to_string( badHeroId ) + " bad)" );
+        check( noCastleTile == 0, "kingdom castleIndices in bounds (" + std::to_string( noCastleTile ) + " out of range)" );
+    }
+
+    // Players: ST_INGAME (0x2000) must be set for every player and exactly
+    // one player must be CONTROL_HUMAN (the player whose turn it is); the rest
+    // are AI. The human's color must be mapColor(curPlayer) — the auto-color /
+    // human-player detection fix.
+    {
+        int noIngame = 0;
+        int humans = 0;
+        int humanColorOk = true;
+        uint8_t humanColor = 0;
+        for ( const auto & p : world.players ) {
+            if ( ( p.modes & 0x2000 ) == 0 )
+                ++noIngame;
+            if ( p.control == 1 ) {
+                ++humans;
+                humanColor = p.color;
+            }
+        }
+        const uint8_t curColor = ( save.header.curPlayer < 6 && save.header.curPlayer < static_cast<int>( save.players.size() ) )
+                                     ? h2::mapColor( save.players[static_cast<size_t>( save.header.curPlayer )].color )
+                                     : 0;
+        if ( humans == 1 ) {
+            if ( humanColor != curColor )
+                humanColorOk = false;
+        }
+        else {
+            humanColorOk = false;
+        }
+        check( noIngame == 0, "player modes have ST_INGAME (" + std::to_string( noIngame ) + " missing)" );
+        check( humans == 1, "exactly one player is CONTROL_HUMAN (" + std::to_string( humans ) + ")" );
+        check( humanColorOk, "human player color matches mapColor(curPlayer)" );
+    }
+
+    // Kingdoms: lostTownDays must be non-zero for live kingdoms (0 makes
+    // fheroes2 eliminate the kingdom on the first new day). Empty/neutral
+    // records (color == 0) are allowed to have 0.
+    {
+        int zeroLost = 0;
+        int liveKingdoms = 0;
+        for ( const auto & k : world.kingdoms ) {
+            if ( k.color == 0 )
+                continue;
+            ++liveKingdoms;
+            if ( k.lostTownDays == 0 )
+                ++zeroLost;
+        }
+        check( liveKingdoms > 0, "at least one live kingdom" );
+        check( zeroLost == 0, "live kingdom lostTownDays non-zero (" + std::to_string( zeroLost ) + " are 0)" );
+    }
+
+    // Castles: dwellingCounts must be 6 slots; heroes: BagArtifacts must be 14.
+    {
+        int badDwelling = 0;
+        int badArtifacts = 0;
+        for ( const auto & c : world.castles )
+            if ( c.dwellingCounts.size() != 6 )
+                ++badDwelling;
+        for ( const auto & h : world.heroes )
+            if ( h.artifacts.size() > 14 )
+                ++badArtifacts;
+        check( badDwelling == 0, "castle dwellingCounts size == 6 (" + std::to_string( badDwelling ) + " bad)" );
+        check( badArtifacts == 0, "hero artifacts <= 14 slots (" + std::to_string( badArtifacts ) + " bad)" );
+    }
+
+    // Recruit slots: empty slot is UNKNOWN (id 0), never -1.
+    {
+        int badRecruit = 0;
+        for ( const auto & k : world.kingdoms )
+            for ( int r : k.recruitIds )
+                if ( r < 0 )
+                    ++badRecruit;
+        check( badRecruit == 0, "kingdom recruitIds >= 0 (" + std::to_string( badRecruit ) + " are -1)" );
+    }
+}
+
+// Validates the metadata invariants of object tiles (the extraInfo >> 3 fixes
+// of the last session). Object tiles are matched between the parsed original
+// save and the converted world by tile index; each rule is only checked when a
+// tile of that object type is present in the fixture.
+void verifyObjectMetadata( const h2::Save & save, const h2conv::WorldData & world )
+{
+    const size_t n = std::min( save.tiles.size(), world.tiles.size() );
+    // Counts per rule; a rule only "applies" when at least one matching tile
+    // exists, so a fixture without a given object does not fail the test.
+    std::map<std::string, std::pair<int, int>> stats;
+
+    auto note = [&]( const std::string & rule, bool ok ) {
+        auto & s = stats[rule];
+        s.first += 1; // applied
+        if ( !ok )
+            s.second += 1; // failures
+    };
+
+    for ( size_t i = 0; i < n; ++i ) {
+        const h2::MapCell & cell = save.tiles[i];
+        const h2conv::WorldData::TileOut & t = world.tiles[i];
+        const uint32_t extra = extraInfo( cell );
+
+        switch ( t.mainObjectType ) {
+        case 152: // OBJ_MONSTER: stack size in metadata[0] (low 8 bits of extra);
+            // the creature type is derived by fheroes2 from the MONS32 frame
+            // (icnIndex + 1), not from metadata.
+            if ( t.mainIcnType == 12 ) {
+                note( "monster metadata[0] == extra & 0xFF", t.metadata[0] == ( extra & 0xFF ) );
+            }
+            break;
+        case 134: // OBJ_TREASURE_CHEST: gold = extra * 500
+            note( "treasure chest gold == extra * 500", t.metadata[1] == extra * 500 );
+            break;
+        case 155: { // OBJ_RESOURCE: count = extra; gold piles use hundreds
+            const uint32_t expected = ( t.metadata[0] == 64 ) ? extra * 100 : extra;
+            note( "resource count == extra", t.metadata[1] == expected );
+            break;
+        }
+        case 159: // OBJ_SHRINE_FIRST_CIRCLE
+        case 202: // OBJ_SHRINE_SECOND_CIRCLE
+        case 203: // OBJ_SHRINE_THIRD_CIRCLE
+        case 204: // OBJ_PYRAMID
+            note( "shrine/pyramid spell == extra", t.metadata[0] == extra );
+            break;
+        case 247: // OBJ_BARRIER
+        case 248: // OBJ_TRAVELLER_TENT
+            note( "barrier/tent color == extra & 7", t.metadata[0] == ( extra & 7 ) );
+            break;
+        case 213: // OBJ_WITCHS_HUT: skill = extra + 1
+            note( "witch's hut skill == extra + 1", t.metadata[0] == extra + 1 );
+            break;
+        default:
+            break;
+        }
+    }
+
+    for ( const auto & [rule, counts] : stats ) {
+        const bool ok = counts.second == 0;
+        check( ok, rule + " (applied on " + std::to_string( counts.first ) + " tiles)" );
+    }
+}
+
+// UID uniqueness: neighboring single-tile objects of the same type (chests,
+// resource piles) must not share a UID. The original save does not store UIDs,
+// so this verifies that the converter's reconstruction did not glue adjacent
+// same-type objects together (the fix for the "removing one chest removes the
+// neighbor" AI assertion).
+void verifyUidSeparation( const h2conv::WorldData & world )
+{
+    const int32_t w = world.width;
+    const int32_t h = world.height;
+
+    auto tileUid = [&]( const h2conv::WorldData::TileOut & t ) -> uint32_t {
+        // The main part's uid, or failed to reconstruct.
+        if ( t.mainUid != 0 )
+            return t.mainUid;
+        return t.mainUid;
+    };
+    auto isTreasureOrResource = []( uint16_t type ) { return type == 134 || type == 155; };
+
+    // Gather main-UID per tile for treasure chests / resource piles.
+    std::map<uint32_t, std::tuple<int32_t, int32_t>> uidPositions; // uid -> (x,y)
+    std::map<uint32_t, bool> uidIsChest;                          // uid -> was it a chest
+    int conflict = 0;
+    int applied = 0;
+
+    for ( int32_t y = 0; y < h; ++y ) {
+        for ( int32_t x = 0; x < w; ++x ) {
+            const auto & t = world.tiles[static_cast<size_t>( y ) * w + x];
+            if ( !isTreasureOrResource( t.mainObjectType ) )
+                continue;
+            if ( t.mainUid == 0 )
+                continue;
+            ++applied;
+            const uint32_t uid = tileUid( t );
+            auto it = uidPositions.find( uid );
+            if ( it == uidPositions.end() ) {
+                uidPositions[uid] = { x, y };
+                uidIsChest[uid] = ( t.mainObjectType == 134 );
+            }
+            else {
+                // Same UID on two tiles: only legal for a multi-tile object
+                // (e.g. two cast-of-one treasure chest frames). A chest and a
+                // resource sharing a UID is always a bug.
+                if ( uidIsChest[uid] != ( t.mainObjectType == 134 ) )
+                    ++conflict;
+            }
+        }
+    }
+
+    check( applied > 0, "uid separation applied (at least one chest/resource present)" );
+    check( conflict == 0, "no mixed chest/resource UID merges (" + std::to_string( conflict ) + " conflicts)" );
+
+    // Adjacent same-type single-tile objects (horizontal / vertical) must have
+    // distinct UIDs.
+    int adjacentConflict = 0;
+    for ( const auto & [uid, pos] : uidPositions ) {
+        const auto [x, y] = pos;
+        for ( const auto & d : std::vector<std::pair<int32_t, int32_t>>{ { 1, 0 }, { 0, 1 } } ) {
+            const int32_t nx = x + d.first;
+            const int32_t ny = y + d.second;
+            if ( nx >= w || ny >= h )
+                continue;
+            const auto & nt = world.tiles[static_cast<size_t>( ny ) * w + nx];
+            if ( !isTreasureOrResource( nt.mainObjectType ) || nt.mainUid == 0 )
+                continue;
+            if ( nt.mainUid == uid )
+                ++adjacentConflict;
+        }
+    }
+    check( adjacentConflict == 0, "adjacent chest/resource tiles have distinct UIDs (" + std::to_string( adjacentConflict ) + " conflicts)" );
+}
+
+// Reads the filename string (the 2nd string after the version) from a
+// produced fheroes2 save. fheroes2 requires a non-empty header filename for
+// SaveFile::findPlayers (auto-color / fog detection).
+std::string readFh2Filename( const std::vector<uint8_t> & data )
+{
+    size_t p = 2; // magic
+    auto readStr = [&]( std::string & out ) {
+        if ( p + 4 > data.size() )
+            return;
+        const uint32_t len = be32( data.data() + p );
+        p += 4;
+        if ( p + len > data.size() )
+            return;
+        out.assign( reinterpret_cast<const char *>( data.data() + p ), len );
+        p += len;
+    };
+    std::string verStr, filename;
+    readStr( verStr ); // version string
+    p += 2;            // version number (u16)
+    p += 2;            // requirements (u16)
+    readStr( filename ); // filename
+    return filename;
+}
+
 // Validates the structure of a produced fheroes2 save: header magic,
 // version, the zlib block header, decompression, and the end-of-stream
 // marker.
@@ -99,12 +376,20 @@ void testFixture( const std::string & name, bool expectCampaign )
         options.formatVersion = version;
         check( h2::convert( save, world, options ), "convert (format " + std::to_string( version ) + ")" );
 
+        verifyWorldStructure( save, world );
+        verifyObjectMetadata( save, world );
+        verifyUidSeparation( world );
+
         const std::vector<uint8_t> out = h2conv::buildSaveFile( save.header, world, options );
         check( !out.empty(), "build (format " + std::to_string( version ) + ")" );
         if ( out.empty() )
             continue;
         validateFh2Save( out, version, "header v" + std::to_string( version ) );
         check( out.size() > 1000, "output size sane (v" + std::to_string( version ) + ")" );
+        // fheroes2 needs a non-empty header filename (SaveFile::findPlayers).
+        const std::string fname = readFh2Filename( out );
+        check( !fname.empty(), "header filename non-empty (v" + std::to_string( version ) + ")" );
+        check( fname == save.header.mapName, "header filename == mapName (v" + std::to_string( version ) + ")" );
     }
 }
 
@@ -330,7 +615,12 @@ int main()
         check( mapCreature( -1 ) == 0, "creature empty -> UNKNOWN" );
         check( mapRace( 0 ) == 0x01, "race Knight" );
         check( mapRace( 5 ) == 0x20, "race Necromancer" );
+        // Full color table (HoMM2 index -> fheroes2 PlayerColor bit).
+        check( mapColor( 0 ) == 0x04, "color blue" );
+        check( mapColor( 1 ) == 0x02, "color green" );
         check( mapColor( 2 ) == 0x01, "color red" );
+        check( mapColor( 3 ) == 0x08, "color yellow" );
+        check( mapColor( 4 ) == 0x10, "color orange" );
         check( mapColor( 5 ) == 0x20, "color purple" );
         check( mapBuildings( 0x38, 1 ) == ( 0x00000004 | 0x00000008 | 0x00080000 | 0x00004000 ), "buildings base set + guild 1" );
         check( ( mapBuildings( 1u << 25, 1 ) & 0x04000000 ) != 0, "buildings cottage upgrade bit" );

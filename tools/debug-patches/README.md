@@ -9,14 +9,22 @@ failure can be located precisely:
 - `StreamBase::setFail()` prints a backtrace (`src/engine/serialize.cpp`);
 - `game_io.cpp`, `world.cpp`, `kingdom.cpp`, `castle.cpp`, `heroes.cpp`
   log the remaining byte count after every load section and the exact
-  validation that failed (castle tile indices, hero ids, kingdom fields);
+  validation that failed (castle tile indices, hero ids, kingdom fields
+  and their `lost_town_days`);
+- `game_over.cpp` (`Result::checkGameOver`): logs every "you have been
+  eliminated" / loss check with the kingdom color and population, to see
+  why a save is kicked out on day 1;
+- `gui/interface_focus.cpp` (`AdventureMap::updateFocus`): logs the
+  focused player/object, so the camera restoration on load can be traced;
 - AI diagnostics (`ai_planner_hero.cpp`, `ai_planner.cpp`,
   `ai_hero_action.cpp`): unhandled-object assert logs the object type with
   a backtrace, the AI action-object cache logs add/erase around trouble
-  tiles, `HeroesAction`/`HeroesActionComplete` log their tile argument;
+  tiles, `HeroesAction`/`HeroesActionComplete` log their tile argument,
+  and invalid shrines log the tile + metadata;
 - `maps_tiles.cpp`: `Tile::setMainObjectType` logs type changes with a
   backtrace for a chosen tile index (used to trace who removes map
-  objects, e.g. AI picking up chests).
+  objects, e.g. AI picking up chests), and the tile loader dumps
+  fog/occupant/road flags around the trouble tiles.
 
 The patched sources live in the git worktree at `dev/fheroes2-dbg`
 (commit `2685c2188`, fheroes2 1.1.17); the patch file is the source of
